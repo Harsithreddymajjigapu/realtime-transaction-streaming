@@ -22,13 +22,14 @@ try:
     model = load_model('fraud_dl_model.keras')
     scaler = joblib.load('scaler.pkl')
     print(" Neural Network Loaded Successfully!")
-except:
+except Exception as e:
     print(" Error: Model files missing! Run 'python train_deep_model.py' first.")
     exit()
 
 consumer = KafkaConsumer(
     'transactions',
     bootstrap_servers='localhost:9092',
+    group_id='fraud-scorer',
     auto_offset_reset='latest',
     value_deserializer=lambda x: json.loads(x.decode('utf-8'))
 )
@@ -43,6 +44,7 @@ for message in consumer:
     
     risk_score = float(model.predict(features_scaled, verbose=0)[0][0])
     is_fraud = risk_score > 0.50
+
     db_record = {
         "transaction_id": txn['id'],
         "user_name": txn['name'],
@@ -55,12 +57,6 @@ for message in consumer:
             "is_blocked": is_fraud,
             "model_version": "v1.0"
         },
-        
-        "device_fingerprint": {
-            "ip": "192.168.1.10", 
-            "os": "Android",
-            "is_vpn": False
-        }
     }
 
     try:
